@@ -34,7 +34,7 @@ echo === バイナリのダウンロードと配布 Start ===
   cp -p ${DOWNLOAD_DIR}/{etcdctl,kubectl} /usr/bin
   cp -p ${DOWNLOAD_DIR}/{etcd,kube-apiserver,kube-controller-manager,kube-scheduler} /usr/bin
 }
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   mkdir -p \
     /mnt/machines/${host}/etc/cni/net.d \
     /mnt/machines/${host}/opt/cni/bin \
@@ -62,7 +62,7 @@ echo === CA証明書と鍵の作成 End ===
 
 echo === クライアントおよびサーバー証明書と鍵の作成 Start ===
 certs=(
-  "admin" "worker-0" "worker-1" "worker-2" # kubelet
+  "admin" "master-0" "worker-0" "worker-1" "worker-2" # kubelet
   "kube-proxy" "kube-scheduler"
   "kube-controller-manager"
   "kube-api-server"
@@ -85,7 +85,7 @@ done
 echo === クライアントおよびサーバー証明書と鍵の作成 End ===
 
 echo === クライアントおよびサーバー証明書と鍵の配布 Start ===
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   mkdir -p /mnt/machines/${host}/var/lib/kubelet
   cp ca.crt /mnt/machines/${host}/var/lib/kubelet/
   cp ${host}.crt \
@@ -104,7 +104,7 @@ echo === クライアントおよびサーバー証明書と鍵の配布 End ===
 
 # kubeconfigの作成と配布
 echo === Kubeconfigの作成と配布 Start ===
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   kubectl config set-cluster kubernetes-the-hard-way \
     --certificate-authority=ca.crt \
     --embed-certs=true \
@@ -209,7 +209,7 @@ done
   kubectl config use-context default \
     --kubeconfig=admin.kubeconfig
 }
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   mkdir -p /mnt/machines/${host}/var/lib/{kube-proxy,kubelet}
 
   cp kube-proxy.kubeconfig \
@@ -235,7 +235,7 @@ echo === data暗号化設定および鍵の作成 End ===
 # systemdのサービスユニットファイルの配置
 echo === systemdのサービスユニットファイル暗号化設定および鍵の作成 Start ===
 cp units/{etcd,kube-apiserver,kube-controller-manager,kube-scheduler}.service /etc/systemd/system
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   HOSTNAME_OVERRIDE=${host}.orb.local envsubst < units/kubelet.service > /mnt/machines/${host}/etc/systemd/system/kubelet.service
   cp units/{containerd,kube-proxy}.service /mnt/machines/${host}/etc/systemd/system
 done
@@ -274,7 +274,7 @@ echo === master nodeのブートストラップ End ===
 
 # worker nodeのブートストラップ準備
 echo === worker nodeのブートストラップ準備 Start ===
-for host in worker-0 worker-1 worker-2; do
+for host in master-0 worker-0 worker-1 worker-2; do
   cp configs/99-loopback.conf /mnt/machines/${host}/etc/cni/net.d
   mkdir -p /mnt/machines/${host}/var/lib/kubelet
   cp configs/kubelet-config.yaml /mnt/machines/${host}/var/lib/kubelet
