@@ -7,8 +7,16 @@ apt-get update
 apt-get install -y git gettext-base
 
 # バイナリのダウンロードと配布
-echo === バイナリのダウンロードと配布 Start ===
+echo === 1. バイナリのダウンロードと配布 Start ===
 {
+  # helmのインストール
+  apt-get install curl gpg apt-transport-https --yes
+  curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | tee /usr/share/keyrings/helm.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | tee /etc/apt/sources.list.d/helm-stable-debian.list
+  apt-get update
+  apt-get install helm
+
+  # その他もろもろ
   ARCH=arm64
   DOWNLOAD_DIR=/downloads
   mkdir -p /downloads
@@ -47,10 +55,10 @@ for host in master-0 worker-0 worker-1 worker-2; do
   cp -p ${DOWNLOAD_DIR}/worker/{containerd,containerd-shim-runc-v2,containerd-stress} /mnt/machines/${host}/bin
   cp -p ${DOWNLOAD_DIR}/cni-plugins/* /mnt/machines/${host}/opt/cni/bin
 done
-echo === バイナリのダウンロードと配布 End ===
+echo === 1. バイナリのダウンロードと配布 End ===
 
 # 証明書作成・配布
-echo === CA証明書と鍵の作成 Start ===
+echo === 2. CA証明書と鍵の作成 Start ===
 {
   openssl genrsa -out ca.key 4096
   openssl req -x509 -new -sha512 -noenc \
@@ -58,9 +66,9 @@ echo === CA証明書と鍵の作成 Start ===
     -config ca.conf \
     -out ca.crt
 }
-echo === CA証明書と鍵の作成 End ===
+echo === 2. CA証明書と鍵の作成 End ===
 
-echo === クライアントおよびサーバー証明書と鍵の作成 Start ===
+echo === 3. クライアントおよびサーバー証明書および鍵の作成と配布 Start ===
 certs=(
   "admin" "master-0" "worker-0" "worker-1" "worker-2" # kubelet
   "kube-proxy" "kube-scheduler"
@@ -82,9 +90,7 @@ for i in ${certs[*]}; do
     -CAcreateserial \
     -out "${i}.crt"
 done
-echo === クライアントおよびサーバー証明書と鍵の作成 End ===
 
-echo === クライアントおよびサーバー証明書と鍵の配布 Start ===
 for host in master-0 worker-0 worker-1 worker-2; do
   mkdir -p /mnt/machines/${host}/var/lib/kubelet
   cp ca.crt /mnt/machines/${host}/var/lib/kubelet/
@@ -99,11 +105,10 @@ cp ca.key ca.crt \
   kube-api-server.key kube-api-server.crt \
   service-accounts.key service-accounts.crt \
   /var/lib/kubernetes
-
-echo === クライアントおよびサーバー証明書と鍵の配布 End ===
+echo === 3. クライアントおよびサーバー証明書および鍵の作成と配布 End ===
 
 # kubeconfigの作成と配布
-echo === Kubeconfigの作成と配布 Start ===
+echo === 4. Kubeconfigの作成と配布 Start ===
 for host in master-0 worker-0 worker-1 worker-2; do
   kubectl config set-cluster kubernetes-the-hard-way \
     --certificate-authority=ca.crt \
@@ -224,37 +229,37 @@ cp admin.kubeconfig \
   kube-controller-manager.kubeconfig \
   kube-scheduler.kubeconfig \
   /var/lib/kubernetes
-echo === Kubeconfigの作成と配布 End ===
+echo === 4. Kubeconfigの作成と配布 End ===
 
 # data暗号化設定および鍵の作成
-echo === data暗号化設定および鍵の作成 Start ===
+echo === 5. data暗号化設定および鍵の作成 Start ===
 ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64) envsubst < configs/encryption-config.yaml \
   > /var/lib/kubernetes/encryption-config.yaml
-echo === data暗号化設定および鍵の作成 End ===
+echo === 5. data暗号化設定および鍵の作成 End ===
 
 # systemdのサービスユニットファイルの配置
-echo === systemdのサービスユニットファイル暗号化設定および鍵の作成 Start ===
+echo === 6. systemdのサービスユニットファイル暗号化設定および鍵の作成 Start ===
 cp units/{etcd,kube-apiserver,kube-controller-manager,kube-scheduler}.service /etc/systemd/system
 for host in master-0 worker-0 worker-1 worker-2; do
   HOSTNAME_OVERRIDE=${host}.orb.local envsubst < units/kubelet.service > /mnt/machines/${host}/etc/systemd/system/kubelet.service
   cp units/{containerd,kube-proxy}.service /mnt/machines/${host}/etc/systemd/system
 done
-echo === systemdのサービスユニットファイル暗号化設定および鍵の作成 End ===
+echo === 6. systemdのサービスユニットファイル暗号化設定および鍵の作成 End ===
 
 # etcdのブートストラップ
-echo === etcdのブートストラップ Start ===
+echo === 7. etcdのブートストラップ Start ===
 {
   systemctl daemon-reload
   systemctl enable etcd
   systemctl restart etcd
 }
-echo === etcdのブートストラップ End ===
+echo === 7. etcdのブートストラップ End ===
 
 echo 10秒待機
 sleep 10
 
 # master nodeのブートストラップ
-echo === master nodeのブートストラップ Start ===
+echo === 8. master nodeのブートストラップ Start ===
 scp \
   configs/kube-scheduler.yaml \
   configs/kube-apiserver-to-kubelet.yaml \
@@ -270,10 +275,10 @@ echo 10秒待機
 sleep 10
 
 kubectl apply -f /var/lib/kubernetes/kube-apiserver-to-kubelet.yaml --kubeconfig /var/lib/kubernetes/admin.kubeconfig
-echo === master nodeのブートストラップ End ===
+echo === 8. master nodeのブートストラップ End ===
 
 # worker nodeのブートストラップ準備
-echo === worker nodeのブートストラップ準備 Start ===
+echo === 9. worker nodeのブートストラップ準備 Start ===
 for host in master-0 worker-0 worker-1 worker-2; do
   cp configs/99-loopback.conf /mnt/machines/${host}/etc/cni/net.d
   mkdir -p /mnt/machines/${host}/var/lib/kubelet
@@ -285,4 +290,4 @@ for host in master-0 worker-0 worker-1 worker-2; do
   mkdir -p /mnt/machines/${host}/var/lib/kube-proxy
   HOSTNAME_OVERRIDE=${host}.orb.local envsubst < configs/kube-proxy-config.yaml > /mnt/machines/${host}/var/lib/kube-proxy/kube-proxy-config.yaml
 done
-echo === worker nodeのブートストラップ準備 End ===
+echo === 9. worker nodeのブートストラップ準備 End ===
