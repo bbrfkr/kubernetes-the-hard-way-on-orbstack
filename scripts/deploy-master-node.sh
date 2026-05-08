@@ -275,9 +275,6 @@ echo === master nodeのブートストラップ End ===
 # worker nodeのブートストラップ準備
 echo === worker nodeのブートストラップ準備 Start ===
 for host in worker-0 worker-1 worker-2; do
-  # orbstackのlinux machineに対するネットワークを指定
-  SUBNET=192.168.139.0/24
-
   cp configs/99-loopback.conf /mnt/machines/${host}/etc/cni/net.d
   mkdir -p /mnt/machines/${host}/var/lib/kubelet
   cp configs/kubelet-config.yaml /mnt/machines/${host}/var/lib/kubelet
